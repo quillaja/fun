@@ -1,6 +1,9 @@
 package main
 
 import (
+	"flag"
+	"fmt"
+	grand "math/rand"
 	"time"
 
 	"github.com/quillaja/goutil/rand"
@@ -10,10 +13,21 @@ import (
 	"golang.org/x/image/colornames"
 )
 
+const (
+	width  = 1200
+	height = 800
+)
+
 func run() {
+
+	var numBalls int
+	flag.IntVar(&numBalls, "n", 10, "Number of balls.")
+	flag.Parse()
+
+	grand.Seed(time.Now().UnixNano())
 	cfg := pixelgl.WindowConfig{
-		Title:  "Pixel Rocks!",
-		Bounds: pixel.R(0, 0, 1024, 768),
+		Title:  "Particles",
+		Bounds: pixel.R(0, 0, width, height),
 		VSync:  true,
 	}
 	win, err := pixelgl.NewWindow(cfg)
@@ -24,9 +38,9 @@ func run() {
 	// 10 particles randomly positioned on screen
 	// with random starting velocities
 	balls := []*Particle{}
-	for i := 0; i < 10; i++ {
+	for i := 0; i < numBalls; i++ {
 		ball := NewParticleDefault()
-		ball.Pos.X, ball.Pos.Y = rand.Float64NM(10, 1000), rand.Float64NM(10, 700) // top center of screen
+		ball.Pos.X, ball.Pos.Y = rand.Float64NM(0, width), rand.Float64NM(0, height)
 		ball.Vel.X = rand.Float64NM(-20, 20)
 		ball.Vel.Y = rand.Float64NM(-20, 20)
 		ball.Radius = 2
@@ -36,33 +50,26 @@ func run() {
 	}
 
 	// mass is kinda "high"
-	attractor := NewParticleParams(512, 384, 10000, 5, colornames.Red)
+	attractor := NewParticleParams(width/3, height/3, 1000, 6, colornames.Red) //lower left
+	// attractor.RepulsorDistance = 20
+	attractor2 := NewParticleParams((width*2)/3, (height*2)/3, 1000, 6, colornames.Red) // upper right
+	// attractor2.RepulsorDistance = 50
 
 	// gravity acts down
 	gravity := pixel.V(0, -10)
+	resistance := 5.0
 
+	frames := 0
+	timer := time.NewTicker(time.Second)
 	start := time.Now()
-
 	for !win.Closed() {
 		dt := time.Since(start)
 		start = time.Now()
 
 		showVecs := win.Pressed(pixelgl.KeyV)
 
-		// update state
-		for _, ball := range balls {
-			ball.ResetForce() // have to do when using gravitation
-			if win.Pressed(pixelgl.KeySpace) {
-				// have to reapply gravity each time
-				ball.ApplyStatic(gravity)
-			}
-			ball.ApplyGravitation(attractor.Body) // gravity between ball and attractor
-			ball.UpdatePosition(dt.Seconds())
-			// fmt.Printf("ball: P: %s\tF: %s\n", ball.Pos, ball.Force)
-		}
-
 		// clear window
-		win.Clear(colornames.Whitesmoke)
+		win.Clear(colornames.White)
 
 		// draw balls
 		for _, ball := range balls {
@@ -73,9 +80,35 @@ func run() {
 		// draw attractor
 		attractor.Draw(false) // won't move anyway
 		attractor.GetVisual().Draw(win)
+		attractor2.Draw(false)
+		attractor2.GetVisual().Draw(win)
 
 		win.Update()
+
+		// update state
+		for _, ball := range balls {
+			ball.ResetForce()
+			if win.Pressed(pixelgl.KeySpace) {
+				ball.ApplyStatic(gravity)
+			}
+			if win.Pressed(pixelgl.KeyR) {
+				ball.ApplyResistance(resistance)
+			}
+			ball.ApplyGravitation(attractor.Body, attractor2.Body) // gravity between ball and attractor
+			ball.UpdatePosition(dt.Seconds())
+		}
+
+		select {
+		case <-timer.C:
+			win.SetTitle(fmt.Sprintf("%d fps", frames))
+			frames = 0
+		default:
+			frames++
+		}
+
 	}
+
+	timer.Stop()
 }
 
 func main() {

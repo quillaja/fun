@@ -11,7 +11,8 @@ import (
 )
 
 // G is the universal gravitational constant
-const G = 100.0
+const G = 300.0
+const maxGForce = 400
 
 // Gravitation calculates the force exerted on "a" by "b".
 func Gravitation(a, b Body) px.Vec {
@@ -19,12 +20,15 @@ func Gravitation(a, b Body) px.Vec {
 	atob := a.Pos.To(b.Pos) // vector from a to b
 	d := atob.Len()         // d should always be positive
 	dsq := d * d
-	if dsq <= 0 { // prevent divide by zero
-		dsq = 1e-1
+	if dsq <= 1 { // prevent divide by zero
+		dsq = 1
+	}
+	if d <= a.RepulsorDistance || d <= b.RepulsorDistance {
+		dsq = -dsq
 	}
 	f := atob.Unit().Scaled((G * a.Mass * b.Mass) / dsq)
-	if f.Len() > 100 {
-		f = f.Unit().Scaled(100)
+	if f.Len() > maxGForce {
+		f = f.Unit().Scaled(maxGForce)
 	}
 	return f
 }
@@ -37,10 +41,11 @@ type Drawable interface {
 
 // Body is the "physics" part of an object.
 type Body struct {
-	Pos   px.Vec
-	Vel   px.Vec
-	Force px.Vec
-	Mass  float64
+	Pos              px.Vec
+	Vel              px.Vec
+	Force            px.Vec
+	Mass             float64
+	RepulsorDistance float64
 }
 
 // ResetForce does exactly what you think it does.
