@@ -16,17 +16,20 @@ import (
 const (
 	width  = 1200
 	height = 800
+	title  = "Particles"
 )
 
 func run() {
 
 	var numBalls int
+	var numAttractors int
 	flag.IntVar(&numBalls, "n", 10, "Number of balls.")
+	flag.IntVar(&numAttractors, "a", 1, "Number of attractors.")
 	flag.Parse()
 
 	grand.Seed(time.Now().UnixNano())
 	cfg := pixelgl.WindowConfig{
-		Title:  "Particles",
+		Title:  title,
 		Bounds: pixel.R(0, 0, width, height),
 		VSync:  true,
 	}
@@ -35,7 +38,7 @@ func run() {
 		panic(err)
 	}
 
-	// 10 particles randomly positioned on screen
+	// particles randomly positioned on screen
 	// with random starting velocities
 	balls := []*Particle{}
 	for i := 0; i < numBalls; i++ {
@@ -49,11 +52,14 @@ func run() {
 		balls = append(balls, ball)
 	}
 
-	// mass is kinda "high"
-	attractor := NewParticleParams(width/3, height/3, 1000, 6, colornames.Red) //lower left
-	// attractor.RepulsorDistance = 20
-	attractor2 := NewParticleParams((width*2)/3, (height*2)/3, 1000, 6, colornames.Red) // upper right
-	// attractor2.RepulsorDistance = 50
+	// attractors randomly positioned on screen
+	attractors := []*Particle{}
+	for i := 0; i < numAttractors; i++ {
+		// mass is kinda "high"?
+		a := NewParticleParams(rand.Float64NM(0, width), rand.Float64NM(0, height), 1000, 6, colornames.Red)
+		// a.RepulsorDistance = 20
+		attractors = append(attractors, a)
+	}
 
 	// gravity acts down
 	gravity := pixel.V(0, -10)
@@ -77,11 +83,11 @@ func run() {
 			ball.GetVisual().Draw(win)
 		}
 
-		// draw attractor
-		attractor.Draw(false) // won't move anyway
-		attractor.GetVisual().Draw(win)
-		attractor2.Draw(false)
-		attractor2.GetVisual().Draw(win)
+		// draw attractors
+		for _, attractor := range attractors {
+			attractor.Draw(false) // won't move (no forces applied, etc)
+			attractor.GetVisual().Draw(win)
+		}
 
 		win.Update()
 
@@ -89,18 +95,20 @@ func run() {
 		for _, ball := range balls {
 			ball.ResetForce()
 			if win.Pressed(pixelgl.KeySpace) {
-				ball.ApplyStatic(gravity)
+				ball.ApplyForce(gravity)
 			}
 			if win.Pressed(pixelgl.KeyR) {
-				ball.ApplyResistance(resistance)
+				ball.ApplyForce(Resistance(&ball.Body, resistance))
 			}
-			ball.ApplyGravitation(attractor.Body, attractor2.Body) // gravity between ball and attractor
+			for _, a := range attractors {
+				ball.ApplyForce(Gravitation(&ball.Body, &a.Body)) // gravity between ball and attractor
+			}
 			ball.UpdatePosition(dt.Seconds())
 		}
 
 		select {
 		case <-timer.C:
-			win.SetTitle(fmt.Sprintf("%d fps", frames))
+			win.SetTitle(fmt.Sprintf("%s - %d fps", title, frames))
 			frames = 0
 		default:
 			frames++
