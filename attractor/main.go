@@ -37,16 +37,20 @@ func run() {
 	flag.IntVar(&numAttractors, "a", 1, "Number of attractors.")
 	flag.Usage = func() {
 		msg :=
-			`Shows a simple particle physics simulation. Hold SPACE to view the object's 
-velocity (thin green line) and force (thick black line) vectors. 
-Hold T to view the paths of all objects. Hold R to apply a resistance and G to 
-apply gravity in the downward direction. (requires OpenGL 3.3+)`
+			`Shows a simple particle physics simulation.
+Hold SPACE to view the objects' velocity (thin line) and force (thick line) vectors. 
+Hold T to view the paths of all objects. 
+Hold R to apply a resistance and G to apply gravity in the downward direction.
+Press Ctrl+Q to exit. 
+(requires OpenGL 3.3+)
+
+Optional parameters:`
 		fmt.Fprintln(os.Stderr, msg)
 		flag.PrintDefaults()
 	}
 	flag.Parse()
 
-	grand.Seed(time.Now().UnixNano())
+	grand.Seed(time.Now().UnixNano()) // gotta seed that RNG
 
 	cfg := pixelgl.WindowConfig{
 		Title:  title,
@@ -58,6 +62,7 @@ apply gravity in the downward direction. (requires OpenGL 3.3+)`
 		panic(err)
 	}
 
+	// required for pixel/text package
 	atlas = text.NewAtlas(basicfont.Face7x13, text.ASCII)
 
 	// particles randomly positioned on screen
@@ -77,12 +82,12 @@ apply gravity in the downward direction. (requires OpenGL 3.3+)`
 	// attractors randomly positioned on screen
 	attractors := []*Particle{}
 	for i := 0; i < numAttractors; i++ {
-		// mass is kinda "high"?
+		m := rand.Float64NM(200, 1000)
 		a := NewParticleParams(
 			rand.Float64NM(0, width),
 			rand.Float64NM(0, height),
-			rand.Float64NM(800, 2000),
-			rand.Float64NM(4, 10),
+			m,
+			m/100,
 			colornames.Orangered)
 		// a.RepulsorDistance = 10
 		attractors = append(attractors, a)
@@ -92,14 +97,19 @@ apply gravity in the downward direction. (requires OpenGL 3.3+)`
 	gravity := pixel.V(0, -10)
 	resistance := 5.0
 
+	// data of particle trails
 	trails := new(AlphaTrail)
-	// bgTrails := trails.GetSprite()
 	trailsMatrix := pixel.IM.Moved(pixel.V(width/2, height/2))
 
+	// other useful things in the main loop
+	txt := text.New(pixel.ZV, atlas)
+	txt.Color = colornames.Black
 	frames := 0
 	timer := time.NewTicker(time.Second)
 	start := time.Now()
-	for !win.Closed() {
+
+	for !win.Closed() &&
+		!(win.Pressed(pixelgl.KeyLeftControl) && win.Pressed(pixelgl.KeyQ)) {
 		dt := time.Since(start)
 		start = time.Now()
 
@@ -109,24 +119,37 @@ apply gravity in the downward direction. (requires OpenGL 3.3+)`
 		win.Clear(colornames.White)
 
 		// draw trails as background
+		// OR draw the objects (and optionally their HUD)
 		if win.Pressed(pixelgl.KeyT) {
-			// bgTrails.Set(trails, trails.Bounds())
-			// bgTrails.Draw(win, trailsMatrix)
 			trails.GetSprite().DrawColorMask(win, trailsMatrix, colornames.Black)
-		}
+		} else {
+			showVecs := win.Pressed(pixelgl.KeySpace)
 
-		showVecs := win.Pressed(pixelgl.KeySpace)
+			// draw balls
+			for _, ball := range balls {
+				ball.Draw(showVecs)
+				ball.GetVisual().Draw(win)
+				if showVecs {
+					// txt.Color = colornames.Black
+					fmt.Fprintf(txt, "F(%0.1f, %0.1f)\nV(%0.1f, %0.1f)",
+						ball.Force.X, ball.Force.Y,
+						ball.Vel.X, ball.Vel.Y)
+					txt.Draw(win, pixel.IM.Moved(ball.Pos.Add(pixel.V(ball.Radius+2, 0))))
+					txt.Clear()
+				}
+			}
 
-		// draw balls
-		for _, ball := range balls {
-			ball.Draw(showVecs)
-			ball.GetVisual().Draw(win)
-		}
-
-		// draw attractors
-		for _, attractor := range attractors {
-			attractor.Draw(false) // won't move (no forces applied, etc)
-			attractor.GetVisual().Draw(win)
+			// draw attractors
+			for _, attractor := range attractors {
+				attractor.Draw(false) // won't move (no forces applied, etc)
+				attractor.GetVisual().Draw(win)
+				if showVecs {
+					// txt.Color = colornames.Black
+					fmt.Fprintf(txt, "M(%0.0f)", attractor.Mass)
+					txt.Draw(win, pixel.IM.Moved(attractor.Pos.Add(pixel.V(attractor.Radius+2, 0))))
+					txt.Clear()
+				}
+			}
 		}
 
 		// finish window drawing
@@ -147,9 +170,7 @@ apply gravity in the downward direction. (requires OpenGL 3.3+)`
 			}
 			ball.UpdatePosition(dt.Seconds())
 
-			if trails.Bounds().Contains(ball.Pos) {
-				trails[int(ball.Pos.X)][int(ball.Pos.Y)] += trailAlpha
-			}
+			trails.AddAlpha(ball.Pos, trailAlpha)
 		}
 
 		// update framerate in window title
@@ -173,7 +194,8 @@ func main() {
 // to be tracked in a quick and (relatively) memory efficient manner.
 // Each object increments the value at AlphaTrail[x][y] by some fractional
 // amount. The value at any particular (x,y) is an alpha value used
-// when drawing the image to screen.
+// when drawing the image to screen. The values for the data structure
+// should not exceed 1.0.
 type AlphaTrail [width][height]float64
 
 // Bounds provides the bounding rectangle, for implementing pixel.Picture
@@ -191,4 +213,16 @@ func (a *AlphaTrail) Color(at pixel.Vec) pixel.RGBA {
 // GetSprite is a convenient way to get a pixel.Sprite of this data, for drawing.
 func (a *AlphaTrail) GetSprite() *pixel.Sprite {
 	return pixel.NewSprite(a, a.Bounds())
+}
+
+// AddAlpha adds the given alpha to the pixel at coords "pos" if the current
+// value is less than 1.0. The function checks that "pos" is within the data
+// struct's bounds before doing anything.
+func (a *AlphaTrail) AddAlpha(pos pixel.Vec, alpha float64) {
+	if a.Bounds().Contains(pos) {
+		x, y := int(pos.X), int(pos.Y)
+		if a[x][y] < 1 {
+			a[x][y] += alpha
+		}
+	}
 }

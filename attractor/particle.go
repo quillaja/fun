@@ -1,11 +1,7 @@
 package main
 
 import (
-	"fmt"
 	"image/color"
-
-	"github.com/faiface/pixel"
-	"github.com/faiface/pixel/text"
 
 	"golang.org/x/image/colornames"
 
@@ -19,7 +15,8 @@ type Drawable interface {
 }
 
 // Particle is the overall object in the world, consisting of a "body"
-// for physics-like movement and a graphical representation.
+// for physics-like movement and a graphical representation. One must call
+// the "New" methods to initialize private members.
 type Particle struct {
 	Body
 
@@ -73,9 +70,11 @@ func (p Particle) Draw(showVectors bool) {
 			p.visual.Push(p.Pos, p.Pos.Add(p.Force))
 			p.visual.Line(2)
 
-			txt := text.New(p.Pos.Add(pixel.V(p.Radius+2, 0)), atlas)
-			fmt.Fprintf(txt, "F:(%0.1f, %0.1f)", p.Force.X, p.Force.Y)
-			txt.Draw(p.visual, pixel.IM)
+			// what i wanted to do, but it wasn't working... pixel said
+			// "panic: (*pixel.Batch).MakePicture: Picture is not the Batch's Picture"
+			// txt := text.New(pixel.ZV, atlas)
+			// fmt.Fprintf(txt, "F:(%0.1f, %0.1f)", p.Force.X, p.Force.Y)
+			// txt.Draw(p.visual, pixel.IM.Moved(p.Pos.Add(pixel.V(p.Radius+2, 0))))
 		}
 
 		// p.dirty = false

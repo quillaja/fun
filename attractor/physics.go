@@ -6,7 +6,7 @@ import (
 
 // G is the universal gravitational constant
 const G = 300.0
-const maxGForce = 400
+const maxGForce = 1000
 
 // Gravitation calculates the force exerted on "a" by "b".
 func Gravitation(a, b *Body) px.Vec {
