@@ -1,7 +1,11 @@
 package main
 
 import (
+	"fmt"
 	"image/color"
+
+	"github.com/faiface/pixel"
+	"github.com/faiface/pixel/text"
 
 	"golang.org/x/image/colornames"
 
@@ -60,7 +64,7 @@ func (p Particle) Draw(showVectors bool) {
 
 		if showVectors {
 			// draw velocity vector
-			p.visual.Color = colornames.Green
+			p.visual.Color = colornames.Black
 			p.visual.Push(p.Pos, p.Pos.Add(p.Vel))
 			p.visual.Line(1)
 
@@ -68,6 +72,10 @@ func (p Particle) Draw(showVectors bool) {
 			p.visual.Color = colornames.Black
 			p.visual.Push(p.Pos, p.Pos.Add(p.Force))
 			p.visual.Line(2)
+
+			txt := text.New(p.Pos.Add(pixel.V(p.Radius+2, 0)), atlas)
+			fmt.Fprintf(txt, "F:(%0.1f, %0.1f)", p.Force.X, p.Force.Y)
+			txt.Draw(p.visual, pixel.IM)
 		}
 
 		// p.dirty = false

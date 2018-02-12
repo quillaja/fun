@@ -7,6 +7,10 @@ import (
 	"os"
 	"time"
 
+	"golang.org/x/image/font/basicfont"
+
+	"github.com/faiface/pixel/text"
+
 	"github.com/quillaja/goutil/rand"
 
 	"github.com/faiface/pixel"
@@ -19,6 +23,10 @@ const (
 	height     = 800
 	title      = "Particles"
 	trailAlpha = 0.2
+)
+
+var (
+	atlas *text.Atlas
 )
 
 func run() {
@@ -39,6 +47,7 @@ apply gravity in the downward direction. (requires OpenGL 3.3+)`
 	flag.Parse()
 
 	grand.Seed(time.Now().UnixNano())
+
 	cfg := pixelgl.WindowConfig{
 		Title:  title,
 		Bounds: pixel.R(0, 0, width, height),
@@ -48,6 +57,8 @@ apply gravity in the downward direction. (requires OpenGL 3.3+)`
 	if err != nil {
 		panic(err)
 	}
+
+	atlas = text.NewAtlas(basicfont.Face7x13, text.ASCII)
 
 	// particles randomly positioned on screen
 	// with random starting velocities
