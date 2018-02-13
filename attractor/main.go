@@ -7,9 +7,10 @@ import (
 	"os"
 	"time"
 
-	"golang.org/x/image/font/basicfont"
+	"golang.org/x/image/font/gofont/gomono"
 
 	"github.com/faiface/pixel/text"
+	"github.com/golang/freetype/truetype"
 
 	"github.com/quillaja/goutil/rand"
 
@@ -62,8 +63,17 @@ Optional parameters:`
 		panic(err)
 	}
 
-	// required for pixel/text package
-	atlas = text.NewAtlas(basicfont.Face7x13, text.ASCII)
+	// open and make font, then pixel/text stuff
+	font, err := truetype.Parse(gomono.TTF)
+	if err != nil {
+		panic(err)
+	}
+	fface := truetype.NewFace(font, &truetype.Options{
+		Size:              10,
+		GlyphCacheEntries: 1})
+	atlas = text.NewAtlas(fface, text.ASCII) // required for pixel/text package
+	txt := text.New(pixel.ZV, atlas)
+	txt.Color = colornames.Black
 
 	// particles randomly positioned on screen
 	// with random starting velocities
@@ -102,8 +112,6 @@ Optional parameters:`
 	trailsMatrix := pixel.IM.Moved(pixel.V(width/2, height/2))
 
 	// other useful things in the main loop
-	txt := text.New(pixel.ZV, atlas)
-	txt.Color = colornames.Black
 	frames := 0
 	timer := time.NewTicker(time.Second)
 	start := time.Now()
@@ -130,12 +138,10 @@ Optional parameters:`
 				ball.Draw(showVecs)
 				ball.GetVisual().Draw(win)
 				if showVecs {
-					// txt.Color = colornames.Black
-					fmt.Fprintf(txt, "F(%0.1f, %0.1f)\nV(%0.1f, %0.1f)",
-						ball.Force.X, ball.Force.Y,
-						ball.Vel.X, ball.Vel.Y)
-					txt.Draw(win, pixel.IM.Moved(ball.Pos.Add(pixel.V(ball.Radius+2, 0))))
-					txt.Clear()
+					drawString(win, txt,
+						fmt.Sprintf("F(%0.1f, %0.1f)\nV(%0.1f, %0.1f)",
+							ball.Force.X, ball.Force.Y, ball.Vel.X, ball.Vel.Y),
+						ball.Pos.Add(pixel.V(ball.Radius+2, 0)))
 				}
 			}
 
@@ -144,10 +150,8 @@ Optional parameters:`
 				attractor.Draw(false) // won't move (no forces applied, etc)
 				attractor.GetVisual().Draw(win)
 				if showVecs {
-					// txt.Color = colornames.Black
-					fmt.Fprintf(txt, "M(%0.0f)", attractor.Mass)
-					txt.Draw(win, pixel.IM.Moved(attractor.Pos.Add(pixel.V(attractor.Radius+2, 0))))
-					txt.Clear()
+					drawString(win, txt, fmt.Sprintf("M(%0.0f)", attractor.Mass),
+						attractor.Pos.Add(pixel.V(attractor.Radius+2, 0)))
 				}
 			}
 		}
@@ -188,6 +192,13 @@ Optional parameters:`
 
 func main() {
 	pixelgl.Run(run)
+}
+
+// draws a string to a location.
+func drawString(w *pixelgl.Window, t *text.Text, text string, pos pixel.Vec) {
+	fmt.Fprint(t, text)
+	t.Draw(w, pixel.IM.Moved(pos))
+	t.Clear()
 }
 
 // AlphaTrail is a simple data structure to allow the object paths
