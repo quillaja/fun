@@ -3,6 +3,8 @@ package main
 import (
 	"image/color"
 
+	"github.com/faiface/pixel"
+
 	"golang.org/x/image/colornames"
 
 	"github.com/faiface/pixel/imdraw"
@@ -49,7 +51,7 @@ func NewParticleParams(x, y, mass, diam float64, color color.Color) *Particle {
 }
 
 // Draw tells the particle to redraw itself.
-func (p Particle) Draw(showVectors bool) {
+func (p *Particle) Draw(showVectors bool) {
 	if p.dirty {
 		p.visual.Reset()
 		p.visual.Clear()
@@ -83,6 +85,11 @@ func (p Particle) Draw(showVectors bool) {
 }
 
 // GetVisual returns the particle's visual representation.
-func (p Particle) GetVisual() *imdraw.IMDraw {
+func (p *Particle) GetVisual() *imdraw.IMDraw {
 	return p.visual
+}
+
+// CollidePoint checks if the given pixel.Vec is within the particle's radius.
+func (p *Particle) CollidePoint(pt pixel.Vec) bool {
+	return p.Pos.To(pt).Len() <= p.Radius
 }

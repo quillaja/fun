@@ -92,13 +92,7 @@ Optional parameters:`
 	// attractors randomly positioned on screen
 	attractors := []*Particle{}
 	for i := 0; i < numAttractors; i++ {
-		m := rand.Float64NM(200, 1000)
-		a := NewParticleParams(
-			rand.Float64NM(0, width),
-			rand.Float64NM(0, height),
-			m,
-			m/100,
-			colornames.Orangered)
+		a := createAttractor(rand.Float64NM(0, width), rand.Float64NM(0, height))
 		// a.RepulsorDistance = 10
 		attractors = append(attractors, a)
 	}
@@ -177,6 +171,26 @@ Optional parameters:`
 			trails.AddAlpha(ball.Pos, trailAlpha)
 		}
 
+		// Mouse input
+		switch {
+		// remove first attractor the mouse hits
+		case win.JustPressed(pixelgl.MouseButtonRight):
+			for i, a := range attractors {
+				if a.CollidePoint(win.MousePosition()) {
+					// stuid way to delete. thanks go
+					n := len(attractors)
+					attractors[i] = attractors[n-1]
+					attractors[n-1] = nil
+					attractors = attractors[:n-1]
+					break
+				}
+			}
+		// add attractor at mouse location
+		case win.JustPressed(pixelgl.MouseButtonLeft):
+			attractors = append(attractors,
+				createAttractor(win.MousePosition().X, win.MousePosition().Y))
+		}
+
 		// update framerate in window title
 		select {
 		case <-timer.C:
@@ -199,6 +213,18 @@ func drawString(w *pixelgl.Window, t *text.Text, text string, pos pixel.Vec) {
 	fmt.Fprint(t, text)
 	t.Draw(w, pixel.IM.Moved(pos))
 	t.Clear()
+}
+
+// makes an attractor
+func createAttractor(x, y float64) *Particle {
+	m := rand.Float64NM(200, 1000)
+	a := NewParticleParams(
+		x,
+		y,
+		m,
+		m/100,
+		colornames.Orangered)
+	return a
 }
 
 // AlphaTrail is a simple data structure to allow the object paths
