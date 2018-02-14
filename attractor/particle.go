@@ -32,7 +32,7 @@ type Particle struct {
 // Has mass and diameter of 1, white color. Other fields are zero.
 func NewParticleDefault() *Particle {
 	return &Particle{
-		Body:   Body{Mass: 1},
+		Body:   Body{Mass: 1, MomentOfInertia: 0.5},
 		Radius: 1,
 		Color:  colornames.White,
 		visual: imdraw.New(nil),
@@ -40,14 +40,20 @@ func NewParticleDefault() *Particle {
 }
 
 // NewParticleParams makes a new Particle with the parameters YOU can decide!
-func NewParticleParams(x, y, mass, diam float64, color color.Color) *Particle {
+func NewParticleParams(x, y, mass, radius float64, color color.Color) *Particle {
 	p := NewParticleDefault()
 	p.Pos.X = x
 	p.Pos.Y = y
 	p.Mass = mass
-	p.Radius = diam
+	p.Radius = radius
+	p.MomentOfInertia = MomentOfInertia(mass, radius)
 	p.Color = color
 	return p
+}
+
+// GetBody implements the "Bodyer" interface.
+func (p *Particle) GetBody() *Body {
+	return &p.Body
 }
 
 // Draw tells the particle to redraw itself.
@@ -56,10 +62,16 @@ func (p *Particle) Draw(showVectors bool) {
 		p.visual.Reset()
 		p.visual.Clear()
 
+		// set matrix to do rotation
+		p.visual.SetMatrix(pixel.IM.Rotated(p.Pos, p.Rotation))
+
 		// draw particle
 		p.visual.Color = p.Color
 		p.visual.Push(p.Pos)
 		p.visual.Circle(p.Radius, 0)
+		p.visual.Color = colornames.Black
+		p.visual.Push(p.Pos, p.Pos.Add(pixel.V(p.Radius, 0)))
+		p.visual.Line(1)
 
 		if showVectors {
 			// draw velocity vector
@@ -71,6 +83,12 @@ func (p *Particle) Draw(showVectors bool) {
 			p.visual.Color = colornames.Black
 			p.visual.Push(p.Pos, p.Pos.Add(p.Force))
 			p.visual.Line(2)
+
+			// draw angular velocity
+			p.visual.Color = colornames.Black
+			rtip := p.Pos.Add(pixel.V(p.Radius, 0))
+			p.visual.Push(rtip, rtip.Add(pixel.V(0, p.RotVel)))
+			p.visual.Line(1)
 
 			// what i wanted to do, but it wasn't working... pixel said
 			// "panic: (*pixel.Batch).MakePicture: Picture is not the Batch's Picture"

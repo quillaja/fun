@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	width      = 1200
+	width      = 1000
 	height     = 800
 	title      = "Particles"
 	trailAlpha = 0.2
@@ -32,6 +32,7 @@ var (
 
 func run() {
 
+	// command line args
 	var numBalls int
 	var numAttractors int
 	flag.IntVar(&numBalls, "n", 10, "Number of balls.")
@@ -39,9 +40,11 @@ func run() {
 	flag.Usage = func() {
 		msg :=
 			`Shows a simple particle physics simulation.
-Hold SPACE to view the objects' velocity (thin line) and force (thick line) vectors. 
+Hold SPACE to view the objects' velocity (thin line) and force (thick line) vectors.
+		For attractors, the mass and angular velocity is shown instead.
 Hold T to view the paths of all objects. 
 Hold R to apply a resistance and G to apply gravity in the downward direction.
+Hold UP or DOWN to apply a torque to the attractors (just makes them spin).
 Press Ctrl+Q to exit. 
 (requires OpenGL 3.3+)
 
@@ -53,6 +56,7 @@ Optional parameters:`
 
 	grand.Seed(time.Now().UnixNano()) // gotta seed that RNG
 
+	// standard window creation for pixel
 	cfg := pixelgl.WindowConfig{
 		Title:  title,
 		Bounds: pixel.R(0, 0, width, height),
@@ -85,6 +89,7 @@ Optional parameters:`
 		ball.Vel.Y = rand.Float64NM(-20, 20)
 		ball.Radius = 2
 		ball.Mass = 1
+		ball.MomentOfInertia = MomentOfInertia(ball.Mass, ball.Radius)
 		ball.Color = colornames.Royalblue
 		balls = append(balls, ball)
 	}
@@ -93,7 +98,7 @@ Optional parameters:`
 	attractors := []*Particle{}
 	for i := 0; i < numAttractors; i++ {
 		a := createAttractor(rand.Float64NM(0, width), rand.Float64NM(0, height))
-		// a.RepulsorDistance = 10
+		// a.RepulsorDistance = a.Radius + 10
 		attractors = append(attractors, a)
 	}
 
@@ -141,10 +146,10 @@ Optional parameters:`
 
 			// draw attractors
 			for _, attractor := range attractors {
-				attractor.Draw(false) // won't move (no forces applied, etc)
+				attractor.Draw(showVecs)
 				attractor.GetVisual().Draw(win)
 				if showVecs {
-					drawString(win, txt, fmt.Sprintf("M(%0.0f)", attractor.Mass),
+					drawString(win, txt, fmt.Sprintf("M(%0.0f)\na(%0.1f)", attractor.Mass, attractor.RotVel),
 						attractor.Pos.Add(pixel.V(attractor.Radius+2, 0)))
 				}
 			}
@@ -161,14 +166,28 @@ Optional parameters:`
 				ball.ApplyForce(gravity)
 			}
 			if win.Pressed(pixelgl.KeyR) {
-				ball.ApplyForce(Resistance(&ball.Body, resistance))
+				ball.ApplyForce(Resistance(ball, resistance))
 			}
 			for _, a := range attractors {
-				ball.ApplyForce(Gravitation(&ball.Body, &a.Body)) // gravity between ball and attractor
+				ball.ApplyForce(Gravitation(ball, a)) // gravity between ball and attractor
 			}
 			ball.UpdatePosition(dt.Seconds())
 
-			trails.AddAlpha(ball.Pos, trailAlpha)
+			trails.AddAlpha(ball.Pos, trailAlpha) // draw trails on that layer
+		}
+
+		for _, a := range attractors {
+			// update attractors while looping
+			a.ResetTorque()
+			switch {
+			case win.Pressed(pixelgl.KeyUp):
+				t := Torque(a, pixel.V(0, 5), a.Pos.Add(pixel.V(a.Radius, 0)))[0]
+				a.ApplyTorque(t)
+			case win.Pressed(pixelgl.KeyDown):
+				t := Torque(a, pixel.V(0, -5), a.Pos.Add(pixel.V(a.Radius, 0)))[0]
+				a.ApplyTorque(t)
+			}
+			a.UpdateRotation(dt.Seconds())
 		}
 
 		// Mouse input
