@@ -10,23 +10,33 @@ import (
 const G = 300.0
 const maxGForce = 1000
 
-// Torque calculates the components of "force" applied at "loc" which becomes
-// a torque on "a" as well as the non-torque translation-producing remainder.
-// return value is a [2]pixel.Vec where [0] is the torque on the center of
-// "a" (in Nm or a similar unit) and [1] is the translational remainder (N, etc).
-func Torque(a Bodyer, force px.Vec, loc px.Vec) (forces [2]px.Vec) {
-	bA := a.GetBody()
-	// find vector from a.Pos to loc, then find component (projection) of
-	// "force" normal to said vector and the component parallel.
-	aToF := bA.Pos.To(loc)
-	norm := aToF.Normal()
-	forces[0] = force.Project(norm)
-	forces[1] = force.Project(aToF)
-	return
+// Torque calculates the torque of "force" applied at "loc" at the center of
+// "a" (which is assumed to be its Body.Pos). One can apply the torque returned
+// from this method using Body.ApplyTorque().
+//
+// If "force" is not perpendicular to the vector from a.Pos to loc, only a
+// portion of the total force is actually converted to a torque.
+// One can use TorqueTrans() to find the
+// (non-torque) translational component of "force".
+func Torque(a Bodyer, force px.Vec, loc px.Vec) float64 {
+	// find vector from a.Pos to loc, then the torque is a 1D scalar equal to
+	// the radial vector cross force (r x F).
+	radial := a.GetBody().Pos.To(loc)
+	return radial.Cross(force) // alternative: f.Project(r.Normal()).Scaled(r.Len())
+}
+
+// TorqueTrans find the (non-torque) translational component of "force" applied
+// at "loc" on "a". If "force" is perpendicular to the vector from a.Pos to loc,
+// the translational force produced is (0,0). One can apply the force returned
+// from this function using the Body.ApplyForce() method.
+func TorqueTrans(a Bodyer, force px.Vec, loc px.Vec) px.Vec {
+	radial := a.GetBody().Pos.To(loc)
+	return force.Project(radial)
 }
 
 // Gravitation calculates the force exerted on "a" by "b". (Hint: the force
-// exerted on b by a is the inverse.)
+// exerted on b by a is the inverse.) One can apply this force by using the
+// Body.ApplyForce() method.
 func Gravitation(a Bodyer, b Bodyer) px.Vec {
 	// F = G * (m1*m2)/|d2-d1|^2 * rhat
 	// var fnet px.Vec
@@ -54,7 +64,8 @@ func Gravitation(a Bodyer, b Bodyer) px.Vec {
 
 // Resistance creates a force(s) of the given magnitude(s) in the direction
 // opposite the Body's velocity. This is called viscous resistance and is
-// calculated using the formula for "Stoke's drag".
+// calculated using the formula for "Stoke's drag". One can apply this force
+// using the Body.ApplyForce() method.
 func Resistance(a Bodyer, magitudes ...float64) px.Vec {
 	bA := a.GetBody()
 	var fnet px.Vec
@@ -83,7 +94,7 @@ type Body struct {
 
 	Rotation float64 // radians
 	RotVel   float64 // rad/sec
-	Torque   px.Vec  // Nm
+	Torque   float64 // Nm
 
 	RepulsorDistance float64 // m
 }
@@ -95,7 +106,7 @@ func (b *Body) ResetForce() {
 
 // ResetTorque does exactly what you think it does.
 func (b *Body) ResetTorque() {
-	b.Torque.X, b.Torque.Y = 0, 0
+	b.Torque = 0
 }
 
 // ApplyGravitation calculates the gravitational force between this body and
@@ -120,9 +131,9 @@ func (b *Body) ApplyForce(forces ...px.Vec) {
 }
 
 // ApplyTorque applies the torque(s) to the Body.Torque.
-func (b *Body) ApplyTorque(torques ...px.Vec) {
+func (b *Body) ApplyTorque(torques ...float64) {
 	for _, t := range torques {
-		b.Torque.Y += t.Y
+		b.Torque += t
 	}
 }
 
@@ -161,7 +172,7 @@ func (b *Body) UpdatePosition(dt float64) {
 func (b *Body) UpdateRotation(dt float64) {
 	// calculate the new angular acceleration
 	// Ia = T, I = (m*r^2)/2, a = (2T)/(m*r^s)
-	acc := b.Torque.Y / b.MomentOfInertia
+	acc := b.Torque / b.MomentOfInertia
 	// calculate new rotational velocity
 	// dw = a*dt
 	b.RotVel += acc * dt

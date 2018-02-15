@@ -181,10 +181,10 @@ Optional parameters:`
 			a.ResetTorque()
 			switch {
 			case win.Pressed(pixelgl.KeyUp):
-				t := Torque(a, pixel.V(0, 5), a.Pos.Add(pixel.V(a.Radius, 0)))[0]
+				t := Torque(a, pixel.V(0, 500), a.Pos.Add(pixel.V(a.Radius, 0)))
 				a.ApplyTorque(t)
 			case win.Pressed(pixelgl.KeyDown):
-				t := Torque(a, pixel.V(0, -5), a.Pos.Add(pixel.V(a.Radius, 0)))[0]
+				t := Torque(a, pixel.V(0, -500), a.Pos.Add(pixel.V(a.Radius, 0)))
 				a.ApplyTorque(t)
 			}
 			a.UpdateRotation(dt.Seconds())
