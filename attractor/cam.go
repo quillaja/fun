@@ -1,17 +1,65 @@
 package main
 
 import (
-	"fmt"
 	"math"
 
 	"github.com/faiface/pixel"
 	"github.com/faiface/pixel/pixelgl"
 )
 
+// An interal type to store 2 related numbers, a low and high bound.
+// pixel.Vec could have been used instead, but this is creates a more
+// self-documenting interface for the user.
 type clamp struct {
 	Low, High float64
 }
 
+// Camera provides a simple but relatively feature rich 2D camera for use with
+// the Pixel graphics library.
+//
+// Position (panning) is controlled via the Position and PanSpeed members.
+// By default, the Position is controled by the user via the Up, Down, Left, and
+// Right keys. However, this can be customized by setting the UpButton,
+// DownButton, LeftButton, and RightButton members to a pixelgl.Button value.
+//
+// Zoom is controlled by the Zoom and ZoomSpeed members. Zooming is based
+// on multication, so a "zero" zoom is Zoom == 1. The ZoomSpeed is based on
+// expotentiation where ZoomSpeed is the base which is raised to some "zoom
+// level" power (ie ZoomSpeed**zoomlvl). This zoom level is usually the mouse's
+// Y-scroll position, but can be customized by providing setting ZoomLevel to
+// a function with the signature `func() float64`.
+//
+// Limits on panning and zooming are provided by XExtents, YExtents, and
+// ZExtents which provide "Low" and "High" limits to which Position.X,
+// Position.Y, and Position.Z are clamped to, respectively.
+//
+// The Reset() series of methods allow the camera position and/or zoom to be
+// reset to their original values. If NewCamera() was used to instantiate, then
+// those defaults are Pos(0,0) and Zoom(1). If NewCameraParams() was used, the
+// initial values for position and zoom provided as parameters are saved within
+// the camera and then used when Reset() is called.
+//
+// Example usage within the context of Pixel:
+//
+//     // ... prior initialization
+//     cam := pixel.NewCamera() // using defaults
+//     // alternatively: NewCameraParams(width/2, height/2, 200, 1.1) for window center
+//     loopStart := time.Now()
+//     for !win.Closed() {
+//         elapsed := time.Since(loopStart)
+//         loopStart = time.Now()
+//
+//         // Reset() should be called before Update() and before
+//         // setting the window's matrix (via SetMatrix())
+//         if win.JustPressed(pixelgl.KeyHome) {
+//             cam.Reset() // reset Position and Zoom to (0,0) and 1
+//         }
+//
+//         cam.Update(win, elapsed.Seconds()) // camera updates position, zoom, etc
+//         win.SetMatrix(cam.GetMatrix()) // provide transformation matrix to window
+//         win.Clear()
+//         //... redraw window, update state, etc
+//
 type Camera struct {
 	Position  pixel.Vec
 	PanSpeed  float64
@@ -27,8 +75,23 @@ type Camera struct {
 	ZoomLevel               func() float64
 
 	prevWinBounds pixel.Rect
+	origPosition  pixel.Vec
+	origZoom      float64
 }
 
+// NewCamera creates a new camera with sane defaults.
+//
+// Default values are:
+//     Position: pixel.ZV // X=0, Y=0
+//     PanSpeed: 200 // pixels/sec
+//     Zoom: 1
+//     ZoomSpeed: 1.1
+//     XExtents.Low = -5000, XExtents.High = 5000
+//     YExtents.Low = -5000, YExtents.High = 5000
+//     ZExtents.Low = -50, ZExtents.High = 50
+//
+// Keyboard Up, Down, Left, and Right control panning, and the mouse wheel
+// controls zoom.
 func NewCamera() *Camera {
 	return &Camera{
 		pixel.ZV,
@@ -38,19 +101,39 @@ func NewCamera() *Camera {
 		clamp{-5000, 5000},
 		clamp{-5000, 5000},
 		clamp{-50, 50},
-		pixelgl.KeyUp, pixelgl.KeyDown, pixelgl.KeyLeft, pixelgl.KeyRight,
+		pixelgl.KeyUp, pixelgl.KeyDown,
+		pixelgl.KeyLeft, pixelgl.KeyRight,
 		nil,
-		pixel.Rect{}}
+		pixel.Rect{},
+		pixel.ZV,
+		1}
 }
 
+// NewCameraParams creates a new camera with the given parameters. "origPosition"
+// and "origZoom" are stored and used for calls to Reset(). Other camera parameters
+// are set according to the defaults (see NewCamera()) but can be changed.
+func NewCameraParams(origPosition pixel.Vec, origZoom, panSpeed, zoomSpeed float64) *Camera {
+	c := NewCamera()
+	c.Position = origPosition
+	c.origPosition = origPosition
+	c.Zoom = origZoom
+	c.origZoom = origZoom
+	c.PanSpeed = panSpeed
+	c.ZoomSpeed = zoomSpeed
+	return c
+}
+
+// Update recalculates the camera position and zoom based, and is generally called
+// each frame before setting the window's matrx. Update checks the keyboard for
+// the status of the defined panning and zooming controls (see `Camera`).
+// Position.X, Position.Y, and Zoom are clamped to XExtents, YExtents, and ZExtents
+// respectively.
 func (cam *Camera) Update(win *pixelgl.Window, timeElapsed float64) {
+	// save window bounds (used in GetMatrix()) only when changed
 	if cam.prevWinBounds != win.Bounds() {
 		cam.prevWinBounds = win.Bounds()
-		fmt.Println("set bounds", cam.prevWinBounds)
 	}
-	// update user controlled things
-	// using switch because pressing both left/right or up/down at the same
-	// time would just cancel out anyway
+	// update pan
 	if win.Pressed(cam.LeftButton) {
 		cam.Position.X -= cam.PanSpeed * timeElapsed
 	}
@@ -64,6 +147,8 @@ func (cam *Camera) Update(win *pixelgl.Window, timeElapsed float64) {
 		cam.Position.Y += cam.PanSpeed * timeElapsed
 	}
 
+	// update zoom based on either the user-defined "ZoomLevel()"
+	// or the mouse wheel's Y position
 	var zlvl float64
 	if cam.ZoomLevel != nil {
 		zlvl = cam.ZoomLevel()
@@ -79,27 +164,41 @@ func (cam *Camera) Update(win *pixelgl.Window, timeElapsed float64) {
 
 }
 
+// GetMatrix gets the transformation matrix to apply the camera's settings to
+// a window.
+//
+//     win.SetMatrix(cam.GetMatrix())
 func (cam *Camera) GetMatrix() pixel.Matrix {
 	return pixel.IM.Scaled(cam.Position, cam.Zoom).
 		Moved(cam.prevWinBounds.Center().Sub(cam.Position))
 }
 
+// Unproject will translate a point to its apparent position in the camera's
+// view. This method is identical to:
+//
+//     m := cam.GetMatrix()
+//     m.Unproject(point)
 func (cam *Camera) Unproject(point pixel.Vec) pixel.Vec {
 	return cam.GetMatrix().Unproject(point)
 }
 
+// Reset restores the camera's Position and Zoom to its initial settings.
 func (cam *Camera) Reset() {
 	cam.ResetPan()
 	cam.ResetZoom()
 }
 
+// ResetPan restores the camera's Position to its initial settings.
 func (cam *Camera) ResetPan() {
 	cam.ResetXPan()
 	cam.ResetYPan()
 }
 
-func (cam *Camera) ResetXPan() { cam.Position.X = 0 }
+// ResetXPan restores the camera's Position.X (horizontal pan) to its initial setting.
+func (cam *Camera) ResetXPan() { cam.Position.X = cam.origPosition.X }
 
-func (cam *Camera) ResetYPan() { cam.Position.Y = 0 }
+// ResetYPan restores the camera's Position.Y (vertical pan) to its initial setting.
+func (cam *Camera) ResetYPan() { cam.Position.Y = cam.origPosition.Y }
 
-func (cam *Camera) ResetZoom() { cam.Zoom = 1 }
+// ResetZoom restores the camera's Zoom to its initial setting.
+func (cam *Camera) ResetZoom() { cam.Zoom = cam.origZoom }

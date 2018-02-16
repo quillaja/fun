@@ -111,8 +111,12 @@ Optional parameters:`
 	trailsMatrix := pixel.IM.Moved(pixel.V(width/2, height/2))
 
 	// other useful things in the main loop
-	cam := NewCamera()
-	cam.Position.X, cam.Position.Y = width/2, height/2
+	cam := NewCameraParams(pixel.V(width/2, height/2), 1, 200, 1.1)
+	// example of customizing panning controls
+	// cam.UpButton = pixelgl.KeyW
+	// cam.DownButton = pixelgl.KeyS
+	// cam.LeftButton = pixelgl.KeyA
+	// cam.RightButton = pixelgl.KeyD
 	frames := 0
 	timer := time.NewTicker(time.Second)
 	start := time.Now()
@@ -126,7 +130,7 @@ Optional parameters:`
 
 		// clear window
 		if win.JustPressed(pixelgl.KeyF1) {
-			cam.ResetZoom()
+			cam.Reset()
 		}
 
 		cam.Update(win, dt.Seconds())
