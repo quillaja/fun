@@ -111,6 +111,8 @@ Optional parameters:`
 	trailsMatrix := pixel.IM.Moved(pixel.V(width/2, height/2))
 
 	// other useful things in the main loop
+	cam := NewCamera()
+	cam.Position.X, cam.Position.Y = width/2, height/2
 	frames := 0
 	timer := time.NewTicker(time.Second)
 	start := time.Now()
@@ -123,6 +125,12 @@ Optional parameters:`
 		// drawing ///////////////////////////////////////////////////
 
 		// clear window
+		if win.JustPressed(pixelgl.KeyF1) {
+			cam.ResetZoom()
+		}
+
+		cam.Update(win, dt.Seconds())
+		win.SetMatrix(cam.GetMatrix())
 		win.Clear(colornames.White)
 
 		// draw trails as background
@@ -180,10 +188,10 @@ Optional parameters:`
 			// update attractors while looping
 			a.ResetTorque()
 			switch {
-			case win.Pressed(pixelgl.KeyUp):
+			case win.Pressed(pixelgl.KeyEqual):
 				t := Torque(a, pixel.V(0, 500), a.Pos.Add(pixel.V(a.Radius, 0)))
 				a.ApplyTorque(t)
-			case win.Pressed(pixelgl.KeyDown):
+			case win.Pressed(pixelgl.KeyMinus):
 				t := Torque(a, pixel.V(0, -500), a.Pos.Add(pixel.V(a.Radius, 0)))
 				a.ApplyTorque(t)
 			}
@@ -195,7 +203,7 @@ Optional parameters:`
 		// remove first attractor the mouse hits
 		case win.JustPressed(pixelgl.MouseButtonRight):
 			for i, a := range attractors {
-				if a.CollidePoint(win.MousePosition()) {
+				if a.CollidePoint(cam.Unproject(win.MousePosition())) {
 					// stuid way to delete. thanks go
 					n := len(attractors)
 					attractors[i] = attractors[n-1]
@@ -206,8 +214,9 @@ Optional parameters:`
 			}
 		// add attractor at mouse location
 		case win.JustPressed(pixelgl.MouseButtonLeft):
+			p := cam.Unproject(win.MousePosition())
 			attractors = append(attractors,
-				createAttractor(win.MousePosition().X, win.MousePosition().Y))
+				createAttractor(p.X, p.Y))
 		}
 
 		// update framerate in window title
