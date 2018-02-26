@@ -7,6 +7,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/quillaja/goutil/pxu"
+
 	"golang.org/x/image/font/gofont/gomono"
 
 	"github.com/faiface/pixel/text"
@@ -41,10 +43,13 @@ func run() {
 		msg :=
 			`Shows a simple particle physics simulation.
 Hold SPACE to view the objects' velocity (thin line) and force (thick line) vectors.
-		For attractors, the mass and angular velocity is shown instead.
+    For attractors, the position, mass, and angular velocity is shown instead.
+Left click the mouse to add an attractor, 
+    and Right click on an existing attractor to delete it.
 Hold T to view the paths of all objects. 
 Hold R to apply a resistance and G to apply gravity in the downward direction.
-Hold UP or DOWN to apply a torque to the attractors (just makes them spin).
+Hold COMMA or PERIOD to apply a torque to the attractors (just makes them spin).
+Use ARROW keys to pan camera, and +/- to zoom. F1 resets the camera.
 Press Ctrl+Q to exit. 
 (requires OpenGL 3.3+)
 
@@ -111,7 +116,7 @@ Optional parameters:`
 	trailsMatrix := pixel.IM.Moved(pixel.V(width/2, height/2))
 
 	// other useful things in the main loop
-	cam := NewCameraParams(pixel.V(width/2, height/2), 1, 200, 1.1)
+	cam := pxu.NewKeyCamera(pixel.ZV)
 	// example of customizing panning controls
 	// cam.UpButton = pixelgl.KeyW
 	// cam.DownButton = pixelgl.KeyS
@@ -122,7 +127,7 @@ Optional parameters:`
 	start := time.Now()
 
 	for !win.Closed() &&
-		!(win.Pressed(pixelgl.KeyLeftControl) && win.Pressed(pixelgl.KeyQ)) {
+		!(win.Pressed(pixelgl.KeyLeftControl) && win.JustPressed(pixelgl.KeyQ)) {
 		dt := time.Since(start)
 		start = time.Now()
 
@@ -133,7 +138,7 @@ Optional parameters:`
 			cam.Reset()
 		}
 
-		cam.Update(win, dt.Seconds())
+		cam.Update(win)
 		win.SetMatrix(cam.GetMatrix())
 		win.Clear(colornames.White)
 
@@ -161,7 +166,8 @@ Optional parameters:`
 				attractor.Draw(showVecs)
 				attractor.GetVisual().Draw(win)
 				if showVecs {
-					drawString(win, txt, fmt.Sprintf("M(%0.0f)\na(%0.1f)", attractor.Mass, attractor.RotVel),
+					drawString(win, txt, fmt.Sprintf("(%0.0f, %0.0f)\nM(%0.0f)\na(%0.1f)",
+						attractor.Pos.X, attractor.Pos.Y, attractor.Mass, attractor.RotVel),
 						attractor.Pos.Add(pixel.V(attractor.Radius+2, 0)))
 				}
 			}
@@ -192,10 +198,10 @@ Optional parameters:`
 			// update attractors while looping
 			a.ResetTorque()
 			switch {
-			case win.Pressed(pixelgl.KeyEqual):
+			case win.Pressed(pixelgl.KeyPeriod):
 				t := Torque(a, pixel.V(0, 500), a.Pos.Add(pixel.V(a.Radius, 0)))
 				a.ApplyTorque(t)
-			case win.Pressed(pixelgl.KeyMinus):
+			case win.Pressed(pixelgl.KeyComma):
 				t := Torque(a, pixel.V(0, -500), a.Pos.Add(pixel.V(a.Radius, 0)))
 				a.ApplyTorque(t)
 			}
