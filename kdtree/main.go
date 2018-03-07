@@ -62,9 +62,7 @@ func main() {
 		plt.PlotOne(node.Data.X(), node.Data.Y(), ptStyle)
 	}
 
-	PreOrderDFS(root, action) // correct way to print
-	// InOrderDFS(root, action)
-	// PostOrderDFS(root, action)
+	PreOrderTraversal(root, action) // correct way to print
 
 	// fmt.Println(points)
 	plt.Show() // blocks while window is open

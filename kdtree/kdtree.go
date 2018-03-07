@@ -108,38 +108,44 @@ func distSq(a, b mgl64.Vec2) float64 {
 	return delta[0]*delta[0] + delta[1]*delta[1]
 }
 
-func PreOrderDFS(root *Node, action func(node *Node)) {
+// PreOrderTraversal traverses the tree in a depth-first manner, performing
+// "action" on the node before visiting children.
+func PreOrderTraversal(root *Node, action func(node *Node)) {
 	action(root)
 
 	if root.Left != nil {
-		PreOrderDFS(root.Left, action)
+		PreOrderTraversal(root.Left, action)
 	}
 
 	if root.Right != nil {
-		PreOrderDFS(root.Right, action)
+		PreOrderTraversal(root.Right, action)
 	}
 }
 
-func InOrderDFS(root *Node, action func(node *Node)) {
+// InOrderTraversal traverses the tree in a depth-first manner, visiting the
+// left child, then performing "action" on the node, then visiting the right child.
+func InOrderTraversal(root *Node, action func(node *Node)) {
 	if root.Left != nil {
-		InOrderDFS(root.Left, action)
+		InOrderTraversal(root.Left, action)
 	}
 
 	action(root)
 
 	if root.Right != nil {
-		InOrderDFS(root.Right, action)
+		InOrderTraversal(root.Right, action)
 	}
 
 }
 
-func PostOrderDFS(root *Node, action func(node *Node)) {
+// PostOrderTraversal traverses the tree in a depth-first manner, first visitng
+// the children, then performing "action" on the node.
+func PostOrderTraversal(root *Node, action func(node *Node)) {
 	if root.Left != nil {
-		PostOrderDFS(root.Left, action)
+		PostOrderTraversal(root.Left, action)
 	}
 
 	if root.Right != nil {
-		PostOrderDFS(root.Right, action)
+		PostOrderTraversal(root.Right, action)
 	}
 
 	action(root)
