@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"math"
 	"sort"
 
@@ -68,38 +69,101 @@ func buildTree(items []mgl64.Vec2, depth int, parent *Node, rng []mgl64.Vec2) (n
 	return n
 }
 
+// used in nearest neighbor searches for best candidate(s)
+type neigh struct {
+	node *Node
+	dist float64
+}
+
 // NearestNeighbor finds the nearest neighbor to searchPt. Returns
 // nil if none found (shouldn't do that).
 func NearestNeighbor(root *Node, searchPt mgl64.Vec2) *Node {
-	best, _ := nnSearch(root, searchPt, nil, math.Inf(0))
-	return best
+	return nnSearch(root, searchPt, &neigh{nil, math.Inf(0)}).node
 }
 
 // does actual search algorithm
-func nnSearch(root *Node, searchPt mgl64.Vec2,
-	curBest *Node, curBestDist float64) (newBest *Node, newBestDist float64) {
+func nnSearch(root *Node, searchPt mgl64.Vec2, curBest *neigh) (newBest *neigh) {
 
 	// if the current node is nil, then just return the current bests
 	if root == nil {
-		return curBest, curBestDist
+		return curBest
 	}
-	// fmt.Println("examining", root.Data)
+	fmt.Println("examining", root.Data, "current best", curBest)
 
 	// check if current node is better than current best
 	// if current best == nil/inf, set current node to best
-	if dist := distSq(root.Data, searchPt); curBest == nil || dist < curBestDist {
-		curBest = root
-		curBestDist = dist
+	if dist := distSq(root.Data, searchPt); curBest.node == nil || dist < curBest.dist {
+		curBest.node = root
+		curBest.dist = dist
 	}
 
-	// go down left or right branch based on axial comparison to current node
-	if searchPt[root.Axis] < root.Data[root.Axis] {
-		newBest, newBestDist = nnSearch(root.Left, searchPt, curBest, curBestDist)
+	// check if points could possibly exist on the other side of root's splitting
+	// axis by checking if the distace from the searchPt to axis is less than
+	// the distance to the current best.
+	// search-to-plane = abs(root.Data[axis] - search[axis])
+	// if search-to-plane <= curbest_dist then go down both branches.
+	// else choose the correct branch.
+	if math.Pow(root.Data[root.Axis]-searchPt[root.Axis], 2) < curBest.dist {
+		newBest = nnSearch(root.Left, searchPt, curBest)
+		newBest = nnSearch(root.Right, searchPt, curBest)
 	} else {
-		newBest, newBestDist = nnSearch(root.Right, searchPt, curBest, curBestDist)
+		// go down left or right branch based on axial comparison to current node.
+		if searchPt[root.Axis] < root.Data[root.Axis] {
+			newBest = nnSearch(root.Left, searchPt, curBest)
+		} else {
+			newBest = nnSearch(root.Right, searchPt, curBest)
+		}
 	}
 
 	return
+}
+
+// NearestKNeighbors returns the nearest [0,k] neighbors to the search point.
+// If fewer than k are found, the returned slice of nodes will be as long as
+// the number found.
+func NearestKNeighbors(root *Node, k int, searchPt mgl64.Vec2) (nodes []*Node) {
+	bests := make([]*neigh, k)
+	knnSearch(root, searchPt, bests) // will alter bests
+	for _, b := range bests {
+		nodes = append(nodes, b.node)
+	}
+	return
+}
+
+// does nn search for k nodes
+// curBests is a best-worst ORDERED list of k elements (some of which may be nil)
+func knnSearch(root *Node, searchPt mgl64.Vec2, curBests []*neigh) {
+
+	if root == nil {
+		return
+	}
+
+	dist := distSq(root.Data, searchPt)
+	for i := 0; i < len(curBests); i++ {
+		// check each. if found a best.dist > root.dist, insert
+		// to keep order, and remove the worst best from the end.
+		// if nil is encountered, insert.
+		if curBests[i] == nil {
+			curBests[i] = &neigh{root, dist}
+		} else if dist < curBests[i].dist {
+			insertAndTrim(&neigh{root, dist}, i, curBests)
+		}
+	}
+
+	// go down branches
+
+	return
+}
+
+func insertAndTrim(item *neigh, at int, s []*neigh) {
+	// insert
+	s = append(s, nil)
+	copy(s[at+1:], s[at:])
+	s[at] = item
+
+	// remove end
+	s[len(s)-1] = nil
+	s = s[:len(s)-1]
 }
 
 // finds distance squared between a and b
