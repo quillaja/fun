@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"math"
 	"sort"
 
@@ -78,17 +77,19 @@ type neigh struct {
 // NearestNeighbor finds the nearest neighbor to searchPt. Returns
 // nil if none found (shouldn't do that).
 func NearestNeighbor(root *Node, searchPt mgl64.Vec2) *Node {
-	return nnSearch(root, searchPt, &neigh{nil, math.Inf(0)}).node
+	best := neigh{nil, math.Inf(0)}
+	nnSearch(root, searchPt, &best)
+	return best.node
 }
 
 // does actual search algorithm
-func nnSearch(root *Node, searchPt mgl64.Vec2, curBest *neigh) (newBest *neigh) {
+func nnSearch(root *Node, searchPt mgl64.Vec2, curBest *neigh) {
 
 	// if the current node is nil, then just return the current bests
 	if root == nil {
-		return curBest
+		return
 	}
-	fmt.Println("examining", root.Data, "current best", curBest)
+	// fmt.Println("examining", root.Data, "current best", curBest)
 
 	// check if current node is better than current best
 	// if current best == nil/inf, set current node to best
@@ -103,15 +104,20 @@ func nnSearch(root *Node, searchPt mgl64.Vec2, curBest *neigh) (newBest *neigh) 
 	// search-to-plane = abs(root.Data[axis] - search[axis])
 	// if search-to-plane <= curbest_dist then go down both branches.
 	// else choose the correct branch.
+	checkBoth := false
 	if math.Pow(root.Data[root.Axis]-searchPt[root.Axis], 2) < curBest.dist {
-		newBest = nnSearch(root.Left, searchPt, curBest)
-		newBest = nnSearch(root.Right, searchPt, curBest)
+		checkBoth = true
+	}
+	// go down left or right branch based on axial comparison to current node.
+	if searchPt[root.Axis] < root.Data[root.Axis] {
+		nnSearch(root.Left, searchPt, curBest)
+		if checkBoth {
+			nnSearch(root.Right, searchPt, curBest)
+		}
 	} else {
-		// go down left or right branch based on axial comparison to current node.
-		if searchPt[root.Axis] < root.Data[root.Axis] {
-			newBest = nnSearch(root.Left, searchPt, curBest)
-		} else {
-			newBest = nnSearch(root.Right, searchPt, curBest)
+		nnSearch(root.Right, searchPt, curBest)
+		if checkBoth {
+			nnSearch(root.Left, searchPt, curBest)
 		}
 	}
 
@@ -122,10 +128,15 @@ func nnSearch(root *Node, searchPt mgl64.Vec2, curBest *neigh) (newBest *neigh) 
 // If fewer than k are found, the returned slice of nodes will be as long as
 // the number found.
 func NearestKNeighbors(root *Node, k int, searchPt mgl64.Vec2) (nodes []*Node) {
-	bests := make([]*neigh, k)
+	// MUST have k+1 capacity, or the append() to the bests slice inside
+	// insertAndTrim() will cause a new backing array to be allocated, and so
+	// the array we want to change is NOT changed...very subtle.
+	bests := make([]*neigh, k, k+1)
 	knnSearch(root, searchPt, bests) // will alter bests
 	for _, b := range bests {
-		nodes = append(nodes, b.node)
+		if b != nil {
+			nodes = append(nodes, b.node)
+		}
 	}
 	return
 }
@@ -137,6 +148,7 @@ func knnSearch(root *Node, searchPt mgl64.Vec2, curBests []*neigh) {
 	if root == nil {
 		return
 	}
+	// fmt.Println("examining", root.Data)
 
 	dist := distSq(root.Data, searchPt)
 	for i := 0; i < len(curBests); i++ {
@@ -145,12 +157,33 @@ func knnSearch(root *Node, searchPt mgl64.Vec2, curBests []*neigh) {
 		// if nil is encountered, insert.
 		if curBests[i] == nil {
 			curBests[i] = &neigh{root, dist}
-		} else if dist < curBests[i].dist {
+			break
+		}
+		if dist < curBests[i].dist {
 			insertAndTrim(&neigh{root, dist}, i, curBests)
+			break
 		}
 	}
 
-	// go down branches
+	// go down branches. use similar process as nnSearch() but use worst best.
+	worstBest := curBests[len(curBests)-1] // would be last
+	checkBoth := false
+	if worstBest == nil ||
+		math.Pow(root.Data[root.Axis]-searchPt[root.Axis], 2) < worstBest.dist {
+		checkBoth = true
+	}
+
+	if searchPt[root.Axis] < root.Data[root.Axis] {
+		knnSearch(root.Left, searchPt, curBests)
+		if checkBoth {
+			knnSearch(root.Right, searchPt, curBests)
+		}
+	} else {
+		knnSearch(root.Right, searchPt, curBests)
+		if checkBoth {
+			knnSearch(root.Left, searchPt, curBests)
+		}
+	}
 
 	return
 }

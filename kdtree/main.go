@@ -14,12 +14,15 @@ import (
 
 const (
 	min = 0
-	max = 100
+	max = 800
 )
 
 // construct kd tree then plot points and lines on chart
 func main() {
 	nPts := flag.Int("n", 10, "Number of points.")
+	x := flag.Float64("x", 0, "x-coord of search point.")
+	y := flag.Float64("y", 0, "y-coord of search point.")
+	k := flag.Int("k", 1, "number of neighbors to find")
 	flag.Parse()
 
 	//generate random points
@@ -36,8 +39,22 @@ func main() {
 	root := BuildTree(points) // make tree
 	fmt.Println("tree build time (ms):", time.Since(start).Seconds()*1000)
 
-	searchpt := mgl64.Vec2{50, 50}
-	fmt.Println("nearest neighbor to", searchpt, "is", NearestNeighbor(root, searchpt).Data)
+	searchpt := mgl64.Vec2{*x, *y}
+	start = time.Now()
+	if *k == 1 {
+		fmt.Println("nearest neighbor to", searchpt, "is", NearestNeighbor(root, searchpt).Data)
+		fmt.Println("took (ms):", time.Since(start).Seconds()*1000)
+	} else if *k > 1 {
+		fmt.Println("the", *k, "nearest neighbors to", searchpt, "are:")
+		result := NearestKNeighbors(root, *k, searchpt)
+		fmt.Println("took (ms):", time.Since(start).Seconds()*1000)
+		for _, n := range result {
+			fmt.Println(n.Data)
+		}
+
+	} else {
+		fmt.Println("k = ", *k)
+	}
 
 	// plot styles
 	ptStyle := &plt.A{C: "#000000", M: "."}
@@ -62,8 +79,9 @@ func main() {
 		plt.PlotOne(node.Data.X(), node.Data.Y(), ptStyle)
 	}
 
-	PreOrderTraversal(root, action) // correct way to print
+	PreOrderTraversal(root, action) // correct way to print tree
 
-	// fmt.Println(points)
+	plt.PlotOne(searchpt.X(), searchpt.Y(), &plt.A{C: "#00FF00", M: "x"}) // plot search pt
+
 	plt.Show() // blocks while window is open
 }
