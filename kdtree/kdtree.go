@@ -11,10 +11,11 @@ import (
 type Node struct {
 	Axis   int
 	Range  []mgl64.Vec2
-	Data   mgl64.Vec2
+	Point  mgl64.Vec2
 	Left   *Node
 	Right  *Node
 	Parent *Node
+	Data   interface{}
 }
 
 // IsLeaf says if the node is a leaf (has no children) or not
@@ -45,7 +46,7 @@ func buildTree(items []mgl64.Vec2, depth int, parent *Node, rng []mgl64.Vec2) (n
 	n := &Node{
 		Axis:   axis,
 		Range:  rng,
-		Data:   items[median],
+		Point:  items[median],
 		Parent: parent}
 
 	// create the "ranges" for the left and right children.
@@ -53,12 +54,12 @@ func buildTree(items []mgl64.Vec2, depth int, parent *Node, rng []mgl64.Vec2) (n
 	var l, r []mgl64.Vec2
 	if axis == 0 {
 		// split horizontal range
-		l = []mgl64.Vec2{{rng[0][0], n.Data[axis]}, rng[1]}
-		r = []mgl64.Vec2{{n.Data[axis], rng[0][1]}, rng[1]}
+		l = []mgl64.Vec2{{rng[0][0], n.Point[axis]}, rng[1]}
+		r = []mgl64.Vec2{{n.Point[axis], rng[0][1]}, rng[1]}
 	} else {
 		// split vertical range
-		l = []mgl64.Vec2{rng[0], {rng[1][0], n.Data[axis]}}
-		r = []mgl64.Vec2{rng[0], {n.Data[axis], rng[1][1]}}
+		l = []mgl64.Vec2{rng[0], {rng[1][0], n.Point[axis]}}
+		r = []mgl64.Vec2{rng[0], {n.Point[axis], rng[1][1]}}
 
 	}
 
@@ -72,6 +73,30 @@ func buildTree(items []mgl64.Vec2, depth int, parent *Node, rng []mgl64.Vec2) (n
 type neigh struct {
 	node *Node
 	dist float64
+}
+
+// DistMetric is a type the calculates the distance
+type DistMetric func(mgl64.Vec2, mgl64.Vec2) float64
+
+// Dist is the distance function to be used in the nearest neighbors searches.
+var Dist = Euclidean
+
+// Euclidean is a function that can be used for Dist which provides the
+// euclidean/cartesian/geometric distance.
+func Euclidean(a, b mgl64.Vec2) float64 {
+	return distSq(a, b)
+}
+
+// Manhattan is a function that can be used for Dist which provides the
+// manhattan/taxi cab/snake distance.
+func Manhattan(a, b mgl64.Vec2) float64 {
+	return manhattanSq(a, b)
+}
+
+// Chebyshev is a function that can be used for Dist which provides the
+// Chebyshev distance.
+func Chebyshev(a, b mgl64.Vec2) float64 {
+	return chebyshevSq(a, b)
 }
 
 // NearestNeighbor finds the nearest neighbor to searchPt. Returns
@@ -93,7 +118,7 @@ func nnSearch(root *Node, searchPt mgl64.Vec2, curBest *neigh) {
 
 	// check if current node is better than current best
 	// if current best == nil/inf, set current node to best
-	if dist := distSq(root.Data, searchPt); curBest.node == nil || dist < curBest.dist {
+	if dist := Dist(root.Point, searchPt); curBest.node == nil || dist < curBest.dist {
 		curBest.node = root
 		curBest.dist = dist
 	}
@@ -105,11 +130,11 @@ func nnSearch(root *Node, searchPt mgl64.Vec2, curBest *neigh) {
 	// if search-to-plane <= curbest_dist then go down both branches.
 	// else choose the correct branch.
 	checkBoth := false
-	if math.Pow(root.Data[root.Axis]-searchPt[root.Axis], 2) < curBest.dist {
+	if math.Pow(root.Point[root.Axis]-searchPt[root.Axis], 2) < curBest.dist {
 		checkBoth = true
 	}
 	// go down left or right branch based on axial comparison to current node.
-	if searchPt[root.Axis] < root.Data[root.Axis] {
+	if searchPt[root.Axis] < root.Point[root.Axis] {
 		nnSearch(root.Left, searchPt, curBest)
 		if checkBoth {
 			nnSearch(root.Right, searchPt, curBest)
@@ -150,7 +175,7 @@ func knnSearch(root *Node, searchPt mgl64.Vec2, curBests []*neigh) {
 	}
 	// fmt.Println("examining", root.Data)
 
-	dist := distSq(root.Data, searchPt)
+	dist := Dist(root.Point, searchPt)
 	for i := 0; i < len(curBests); i++ {
 		// check each. if found a best.dist > root.dist, insert
 		// to keep order, and remove the worst best from the end.
@@ -169,11 +194,11 @@ func knnSearch(root *Node, searchPt mgl64.Vec2, curBests []*neigh) {
 	worstBest := curBests[len(curBests)-1] // would be last
 	checkBoth := false
 	if worstBest == nil ||
-		math.Pow(root.Data[root.Axis]-searchPt[root.Axis], 2) < worstBest.dist {
+		math.Pow(root.Point[root.Axis]-searchPt[root.Axis], 2) < worstBest.dist {
 		checkBoth = true
 	}
 
-	if searchPt[root.Axis] < root.Data[root.Axis] {
+	if searchPt[root.Axis] < root.Point[root.Axis] {
 		knnSearch(root.Left, searchPt, curBests)
 		if checkBoth {
 			knnSearch(root.Right, searchPt, curBests)
@@ -203,6 +228,20 @@ func insertAndTrim(item *neigh, at int, s []*neigh) {
 func distSq(a, b mgl64.Vec2) float64 {
 	delta := b.Sub(a)
 	return delta[0]*delta[0] + delta[1]*delta[1]
+}
+
+// finds the square of the manhattan distance between a and b
+func manhattanSq(a, b mgl64.Vec2) float64 {
+	s := b.Sub(a)
+	d := math.Abs(s.X()) + math.Abs(s.Y())
+	return d * d
+}
+
+// finds the square of Chebyshev distance between a and b
+func chebyshevSq(a, b mgl64.Vec2) float64 {
+	s := b.Sub(a)
+	d := math.Max(math.Abs(s.X()), math.Abs(s.Y()))
+	return d * d
 }
 
 // PreOrderTraversal traverses the tree in a depth-first manner, performing
