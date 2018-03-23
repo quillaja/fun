@@ -27,12 +27,15 @@ func Voronoi(points []mgl64.Vec2, width, height int, d DistMetric, filename stri
 	})
 
 	// 2. build image pixel by pixel. color pixel based on the
-	// nearest neighbor in the tree
+	// nearest neighbor in the tree. Run NN search and image draw in
+	// a gofunc to improve performance.
 	img := image.NewRGBA(image.Rect(0, 0, width, height))
 	for y := 0; y < height; y++ {
 		for x := 0; x < width; x++ {
-			nn := NearestNeighbor(root, mgl64.Vec2{float64(x), float64(y)})
-			img.Set(x, y, nn.Data.(color.Color))
+			go func(x, y int) {
+				nn := NearestNeighbor(root, mgl64.Vec2{float64(x), float64(y)})
+				img.Set(x, y, nn.Data.(color.Color))
+			}(x, y)
 		}
 	}
 

@@ -10,11 +10,11 @@ import (
 // Node is a node in the kdtree
 type Node struct {
 	Axis   int
-	Range  []mgl64.Vec2
+	Range  []mgl64.Vec2 // for plotting only
 	Point  mgl64.Vec2
 	Left   *Node
 	Right  *Node
-	Parent *Node
+	Parent *Node // not really used
 	Data   interface{}
 }
 
@@ -26,17 +26,17 @@ func (n *Node) IsLeaf() bool {
 // BuildTree makes the kd tree and returns its root node. The order of "items"
 // will not be preserved.
 func BuildTree(items []mgl64.Vec2) (root *Node) {
-	return buildTree(items, 0, nil, []mgl64.Vec2{{min, max}, {min, max}})
+	return buildTree(items, 0, 2, nil, []mgl64.Vec2{{min, max}, {min, max}})
 }
 
 // does actual tree build
-func buildTree(items []mgl64.Vec2, depth int, parent *Node, rng []mgl64.Vec2) (node *Node) {
+func buildTree(items []mgl64.Vec2, depth, dims int, parent *Node, rng []mgl64.Vec2) (node *Node) {
 	if len(items) == 0 {
 		return nil
 	}
 
 	// ascending sort items by axis
-	axis := depth % 2 // 0=x, 1=y
+	axis := depth % dims // 0=x, 1=y, 2=z (for Vec3)
 	sort.Slice(items, func(i, j int) bool {
 		return items[i][axis] < items[j][axis]
 	})
@@ -63,8 +63,8 @@ func buildTree(items []mgl64.Vec2, depth int, parent *Node, rng []mgl64.Vec2) (n
 
 	}
 
-	n.Left = buildTree(items[:median], depth+1, n, l)
-	n.Right = buildTree(items[median+1:], depth+1, n, r)
+	n.Left = buildTree(items[:median], depth+1, dims, n, l)
+	n.Right = buildTree(items[median+1:], depth+1, dims, n, r)
 
 	return n
 }
