@@ -7,6 +7,7 @@ import (
 	"image/png"
 	"io/ioutil"
 	"math"
+	"sync"
 
 	"github.com/go-gl/mathgl/mgl64"
 	"github.com/lucasb-eyer/go-colorful"
@@ -29,15 +30,19 @@ func Voronoi(points []mgl64.Vec2, width, height int, d DistMetric, filename stri
 	// 2. build image pixel by pixel. color pixel based on the
 	// nearest neighbor in the tree. Run NN search and image draw in
 	// a gofunc to improve performance.
+	wg := sync.WaitGroup{}
 	img := image.NewRGBA(image.Rect(0, 0, width, height))
 	for y := 0; y < height; y++ {
 		for x := 0; x < width; x++ {
 			go func(x, y int) {
+				wg.Add(1)
 				nn := NearestNeighbor(root, mgl64.Vec2{float64(x), float64(y)})
 				img.Set(x, y, nn.Data.(color.Color))
+				wg.Done()
 			}(x, y)
 		}
 	}
+	wg.Wait()
 
 	// 2.5 draw point set
 	for _, p := range points {
