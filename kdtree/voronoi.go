@@ -34,8 +34,8 @@ func Voronoi(points []mgl64.Vec2, width, height int, d DistMetric, filename stri
 	img := image.NewRGBA(image.Rect(0, 0, width, height))
 	for y := 0; y < height; y++ {
 		for x := 0; x < width; x++ {
+			wg.Add(1)
 			go func(x, y int) {
-				wg.Add(1)
 				nn := NearestNeighbor(root, mgl64.Vec2{float64(x), float64(y)})
 				img.Set(x, y, nn.Data.(color.Color))
 				wg.Done()
