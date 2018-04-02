@@ -114,36 +114,43 @@ func nnSearch(root *Node, searchPt mgl64.Vec2, curBest *neigh) {
 	if root == nil {
 		return
 	}
-	// fmt.Println("examining", root.Data, "current best", curBest)
+
+	// decide which branch to visit first, then visit it.
+	// this lets search start at a leaf, which should provide potentially
+	// better curBests than starting at the root.
+	var goDown *Node
+	if searchPt[root.Axis] <= root.Point[root.Axis] {
+		goDown = root.Left
+	} else {
+		goDown = root.Right
+	}
+	nnSearch(goDown, searchPt, curBest)
+	// fmt.Println("examining", root.Point, "current best", curBest)
 
 	// check if current node is better than current best
 	// if current best == nil/inf, set current node to best
 	if dist := Dist(root.Point, searchPt); curBest.node == nil || dist < curBest.dist {
 		curBest.node = root
 		curBest.dist = dist
+		// fmt.Println(" changing curBest to", root.Point)
 	}
 
 	// check if points could possibly exist on the other side of root's splitting
-	// axis by checking if the distace from the searchPt to axis is less than
+	// axis by checking if the distance from the searchPt to axis is less than
 	// the distance to the current best.
 	// search-to-plane = abs(root.Data[axis] - search[axis])
 	// if search-to-plane <= curbest_dist then go down both branches.
 	// else choose the correct branch.
-	checkBoth := false
-	if math.Pow(root.Point[root.Axis]-searchPt[root.Axis], 2) < curBest.dist {
-		checkBoth = true
-	}
-	// go down left or right branch based on axial comparison to current node.
-	if searchPt[root.Axis] < root.Point[root.Axis] {
-		nnSearch(root.Left, searchPt, curBest)
-		if checkBoth {
-			nnSearch(root.Right, searchPt, curBest)
-		}
+	checkBoth := math.Pow(root.Point[root.Axis]-searchPt[root.Axis], 2) < curBest.dist
+
+	// go down branch NOT visited earlier based on axial comparison to current node.
+	if goDown == root.Left {
+		goDown = root.Right
 	} else {
-		nnSearch(root.Right, searchPt, curBest)
-		if checkBoth {
-			nnSearch(root.Left, searchPt, curBest)
-		}
+		goDown = root.Left
+	}
+	if checkBoth {
+		nnSearch(goDown, searchPt, curBest)
 	}
 
 	return
@@ -173,7 +180,16 @@ func knnSearch(root *Node, searchPt mgl64.Vec2, curBests []*neigh) {
 	if root == nil {
 		return
 	}
-	// fmt.Println("examining", root.Data)
+
+	// go down one branch
+	var goDown *Node
+	if searchPt[root.Axis] <= root.Point[root.Axis] {
+		goDown = root.Left
+	} else {
+		goDown = root.Right
+	}
+	knnSearch(goDown, searchPt, curBests)
+	// fmt.Println("examining", root.Point)
 
 	dist := Dist(root.Point, searchPt)
 	for i := 0; i < len(curBests); i++ {
@@ -181,10 +197,12 @@ func knnSearch(root *Node, searchPt mgl64.Vec2, curBests []*neigh) {
 		// to keep order, and remove the worst best from the end.
 		// if nil is encountered, insert.
 		if curBests[i] == nil {
+			// fmt.Println(" adding a default to bests", root.Point, dist)
 			curBests[i] = &neigh{root, dist}
 			break
 		}
 		if dist < curBests[i].dist {
+			// fmt.Println(" adding to bests", root.Point, dist)
 			insertAndTrim(&neigh{root, dist}, i, curBests)
 			break
 		}
@@ -198,16 +216,15 @@ func knnSearch(root *Node, searchPt mgl64.Vec2, curBests []*neigh) {
 		checkBoth = true
 	}
 
-	if searchPt[root.Axis] < root.Point[root.Axis] {
-		knnSearch(root.Left, searchPt, curBests)
-		if checkBoth {
-			knnSearch(root.Right, searchPt, curBests)
-		}
+	// go down other branch if necessary
+	if goDown == root.Left {
+		goDown = root.Right
 	} else {
-		knnSearch(root.Right, searchPt, curBests)
-		if checkBoth {
-			knnSearch(root.Left, searchPt, curBests)
-		}
+		goDown = root.Left
+	}
+	if checkBoth {
+		// fmt.Println(" going down other")
+		knnSearch(goDown, searchPt, curBests)
 	}
 
 	return

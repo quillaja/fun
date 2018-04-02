@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	stdrand "math/rand"
 	"time"
 
 	"github.com/cpmech/gosl/plt"
@@ -12,9 +13,10 @@ import (
 )
 
 const (
-	min      = 0
-	max      = 800
-	showPlot = false
+	min        = 0
+	max        = 10
+	showPlot   = true
+	runVoronoi = false
 )
 
 // construct kd tree then plot points and lines on chart
@@ -26,7 +28,7 @@ func main() {
 	flag.Parse()
 
 	//generate random points
-	// stdrand.Seed(time.Now().UnixNano())
+	stdrand.Seed(time.Now().UnixNano())
 	points := []mgl64.Vec2{}
 	for n := 0; n < *nPts; n++ {
 		points = append(points, mgl64.Vec2{
@@ -35,7 +37,7 @@ func main() {
 			rand.Float64NM(min, max),
 			rand.Float64NM(min, max)})
 	}
-	// points = []mgl64.Vec2{{2, 3}, {5, 4}, {9, 6}, {4, 7}, {8, 1}, {7, 2}} // test data
+	// points = []mgl64.Vec2{{2, 3}, {5, 4}, {9, 6}, {4, 7}, {8, 1}, {7, 8}} // test data
 
 	Dist = Euclidean
 
@@ -44,13 +46,16 @@ func main() {
 	fmt.Println("tree build time (ms):", time.Since(start).Seconds()*1000)
 
 	searchpt := mgl64.Vec2{*x, *y}
+	result := []*Node{}
 	start = time.Now()
 	if *k == 1 {
-		fmt.Println("nearest neighbor to", searchpt, "is", NearestNeighbor(root, searchpt).Point)
+		found := NearestNeighbor(root, searchpt)
+		result = append(result, found)
+		fmt.Println("nearest neighbor to", searchpt, "is", found.Point)
 		fmt.Println("search took (ms):", time.Since(start).Seconds()*1000)
 	} else if *k > 1 {
 		fmt.Println("the", *k, "nearest neighbors to", searchpt, "are:")
-		result := NearestKNeighbors(root, *k, searchpt)
+		result = NearestKNeighbors(root, *k, searchpt)
 		fmt.Println("search took (ms):", time.Since(start).Seconds()*1000)
 		for _, n := range result {
 			fmt.Println(n.Point)
@@ -63,6 +68,7 @@ func main() {
 	if showPlot {
 		// plot styles
 		ptStyle := &plt.A{C: "#000000", M: "."}
+		foundStyle := &plt.A{C: "#00FF00", M: "."}
 		vStyle := &plt.A{C: "#FF0000"}
 		hStyle := &plt.A{C: "#0000FF"}
 
@@ -86,15 +92,21 @@ func main() {
 
 		PreOrderTraversal(root, action) // correct way to print tree
 
-		plt.PlotOne(searchpt.X(), searchpt.Y(), &plt.A{C: "#00FF00", M: "x"}) // plot search pt
+		plt.PlotOne(searchpt.X(), searchpt.Y(), &plt.A{C: "#00AA00", M: "x"}) // plot search pt
+		for _, r := range result {                                            // plot found point(s)
+			plt.PlotOne(r.Point.X(), r.Point.Y(), foundStyle)
+		}
 
+		plt.SetAxis(min, max, min, max)
 		plt.Show() // blocks while window is open
 	}
 
 	// attempt voronoi plot
-	start = time.Now()
-	Voronoi(points, max, max, Euclidean, "vor-eucl.png")
-	Voronoi(points, max, max, Manhattan, "vor-manh.png")
-	Voronoi(points, max, max, Chebyshev, "vor-cheb.png")
-	fmt.Println("avg time for voronoi plot (s):", time.Since(start).Seconds()/3)
+	if runVoronoi {
+		start = time.Now()
+		Voronoi(points, max, max, Euclidean, "vor-eucl.png")
+		Voronoi(points, max, max, Manhattan, "vor-manh.png")
+		Voronoi(points, max, max, Chebyshev, "vor-cheb.png")
+		fmt.Println("avg time for voronoi plot (s):", time.Since(start).Seconds()/3)
+	}
 }
