@@ -68,7 +68,7 @@ func run() {
 			fmt.Printf("raw grid: %0.2f, %0.2f\tloc: %v\n", x, y, loc)
 			v, ok := grid.Data[loc].(float64)
 			if ok {
-				grid.Data[loc] = math.Mod(v+5, 360)
+				grid.Data[loc] = math.Mod(v+10, 360)
 			} else {
 				grid.Data[loc] = 0.0
 			}
