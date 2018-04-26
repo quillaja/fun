@@ -124,6 +124,17 @@ func (grid *HexGrid) Set(c, r int, data interface{}) {
 	}
 }
 
+// Map gets access to the grid's data, for use in "range", etc.
+func (grid *HexGrid) Map() map[Loc]interface{} {
+	return grid.Data
+}
+
+// Tile returns the axial coords (column and row) of the hexagon containing
+// the given fractional grid coordinates.
+func (grid *HexGrid) Tile(c, r float64) (int, int) {
+	return AxialRoundInt(c, r)
+}
+
 // Axial converts cube coordinates to axial coordinates.
 func Axial(x, y, z float64) (float64, float64) {
 	return x, y

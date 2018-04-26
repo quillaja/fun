@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"fun/hex"
 	"math"
@@ -22,6 +23,10 @@ import (
 func run() {
 	rand.Seed(time.Now().UnixNano())
 
+	// command line flag
+	gridType := flag.String("type", "h", "Type of grid (h, s).")
+	flag.Parse()
+
 	cfg := pixelgl.WindowConfig{
 		Title:  "HexGrid example",
 		Bounds: pixel.R(0, 0, 800, 800),
@@ -33,20 +38,29 @@ func run() {
 	}
 
 	const hexRadius = 40
-	grid := hex.NewHexGrid(hexRadius, hex.PointyTop)
+	var grid hex.Grid
+	switch *gridType {
+	case "h":
+		grid = hex.NewHexGrid(hexRadius, hex.PointyTop)
+	case "s":
+		grid = hex.NewSquareGrid(hexRadius, 0)
+	default:
+		fmt.Printf("Invalid grid type: %s. Defaulting to hex ('h').\n", *gridType)
+		grid = hex.NewHexGrid(hexRadius, hex.PointyTop)
+	}
 	imd := imdraw.New(nil)
 
 	// create some initial data
-	pts, min, max := genHexPoints(5)
-	for _, p := range pts {
-		grid.Set(p.C(), p.R(), 0.0)
-	}
-	fmt.Printf("min and max grid coordinates: %d, %d\n", min, max)
+	// pts, min, max := genHexPoints(5)
+	// for _, p := range pts {
+	// 	grid.Set(p.C(), p.R(), 0.0)
+	// }
+	// fmt.Printf("min and max grid coordinates: %d, %d\n", min, max)
 
 	// func to draw the hex tiles with data
 	render := func() {
 		imd.Reset()
-		for k, v := range grid.Data {
+		for k, v := range grid.Map() {
 			imd.Color = colorful.Hsv(v.(float64), 1, 1)
 			for _, vert := range grid.Vertices(k.CR()) {
 				imd.Push(pixel.V(vert.X(), vert.Y()))
@@ -63,14 +77,14 @@ func run() {
 		if win.JustPressed(pixelgl.MouseButtonRight) {
 			click := cam.Unproject(win.MousePosition())
 			x, y := grid.ToGrid(click.XY())
-			c, r := hex.AxialRoundInt(x, y)
+			c, r := grid.Tile(x, y)
 			loc := hex.Loc{c, r}
 			fmt.Printf("raw grid: %0.2f, %0.2f\tloc: %v\n", x, y, loc)
-			v, ok := grid.Data[loc].(float64)
+			v, ok := grid.Get(c, r)
 			if ok {
-				grid.Data[loc] = math.Mod(v+10, 360)
+				grid.Set(c, r, math.Mod(v.(float64)+10, 360))
 			} else {
-				grid.Data[loc] = 0.0
+				grid.Set(c, r, 0.0)
 			}
 			render()
 		}
