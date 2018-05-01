@@ -24,11 +24,11 @@ func run() {
 	rand.Seed(time.Now().UnixNano())
 
 	// command line flag
-	gridType := flag.String("type", "h", "Type of grid (h, s).")
+	gridType := flag.String("type", "h", "Type of grid (h = hex, s = square).")
 	flag.Parse()
 
 	cfg := pixelgl.WindowConfig{
-		Title:  "HexGrid example",
+		Title:  "Grid example",
 		Bounds: pixel.R(0, 0, 800, 800),
 		VSync:  true,
 	}
@@ -43,7 +43,7 @@ func run() {
 	case "h":
 		grid = hex.NewHexGrid(hexRadius, hex.PointyTop)
 	case "s":
-		grid = hex.NewSquareGrid(hexRadius, 0)
+		grid = hex.NewSquareGrid(hexRadius, math.Pi/4) // grid squares rotated 45 deg
 	default:
 		fmt.Printf("Invalid grid type: %s. Defaulting to hex ('h').\n", *gridType)
 		grid = hex.NewHexGrid(hexRadius, hex.PointyTop)
@@ -75,9 +75,9 @@ func run() {
 	for !win.Closed() {
 
 		if win.JustPressed(pixelgl.MouseButtonRight) {
-			click := cam.Unproject(win.MousePosition())
-			x, y := grid.ToGrid(click.XY())
-			c, r := grid.Tile(x, y)
+			click := cam.Unproject(win.MousePosition()) // convert mouse position to screen/world position
+			x, y := grid.ToGrid(click.XY())             // convert world position to grid coords
+			c, r := grid.Tile(x, y)                     // find grid tile's position (col,row) from fractional grid coords
 			loc := hex.Loc{c, r}
 			fmt.Printf("raw grid: %0.2f, %0.2f\tloc: %v\n", x, y, loc)
 			v, ok := grid.Get(c, r)
