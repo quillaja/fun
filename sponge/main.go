@@ -42,7 +42,7 @@ func (c *Cube) Subdivide() (cubes []*Cube) {
 }
 
 func (c *Cube) Draw(scene *core.Node) {
-	geom := geometry.NewBox(c.Side, c.Side, c.Side, 1, 1, 1)
+	geom := geometry.NewBox(float32(c.Side), float32(c.Side), float32(c.Side))
 	box := graphic.NewMesh(geom, cubeMaterial)
 	box.SetPositionVec(&c.Vector3)
 	scene.Add(box)
